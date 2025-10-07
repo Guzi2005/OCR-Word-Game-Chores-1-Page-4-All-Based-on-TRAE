@@ -1,0 +1,1821 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文本草稿处理器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <style>
+        /* 基础样式 */
+        body {
+            font-family: 'Comic Sans MS', 'Comic Neue', 'Indie Flower', cursive;
+            transition: all 0.3s ease;
+            overflow-x: hidden;
+        }
+        
+        /* 主题样式 */
+        .theme-light {
+            background-color: #F9F7F3;
+            color: #333333;
+        }
+        
+        .theme-dark {
+            background-color: #2C2C2C;
+            color: #E0E0E0;
+        }
+        
+        /* 通用组件样式 */
+        .sketch-border {
+            position: relative;
+            border: 2px solid currentColor;
+            border-radius: 4px;
+            box-shadow: 2px 2px 0 rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .sketch-border::before {
+            content: '';
+            position: absolute;
+            top: -3px;
+            left: -3px;
+            right: -3px;
+            bottom: -3px;
+            border: 1px solid currentColor;
+            border-radius: 6px;
+            transform: rotate(-0.3deg);
+            z-index: -1;
+            opacity: 0.7;
+        }
+        
+        .sketch-btn {
+            font-family: inherit;
+            padding: 6px 12px;
+            border: 2px solid currentColor;
+            background-color: inherit;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            box-shadow: 2px 2px 0 rgba(0,0,0,0.2);
+        }
+        
+        .sketch-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 3px 3px 0 rgba(0,0,0,0.2);
+        }
+        
+        .sketch-btn:active {
+            transform: translateY(1px);
+            box-shadow: 1px 1px 0 rgba(0,0,0,0.2);
+        }
+        
+        /* 背景样式 */
+        .bg-grid {
+            background-image: 
+                linear-gradient(to right, rgba(160, 150, 130, 0.15) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(160, 150, 130, 0.15) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        
+        .theme-dark .bg-grid {
+            background-image: 
+                linear-gradient(to right, rgba(100, 100, 100, 0.15) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(100, 100, 100, 0.15) 1px, transparent 1px);
+        }
+        
+        /* 拖拽元素样式 */
+        .draggable-block {
+            padding: 6px 10px;
+            border: 2px solid currentColor;
+            background-color: inherit;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            cursor: move;
+            transition: all 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            white-space: nowrap; /* 防止按钮内部换行 */
+        }
+        
+        .draggable-block:hover {
+            background-color: var(--highlight-color);
+            transform: translateX(3px);
+        }
+        
+        .drop-zone {
+            min-height: 150px;
+            padding: 12px;
+            border: 2px dashed currentColor;
+            border-radius: 4px;
+            margin-bottom: 16px;
+            transition: all 0.3s;
+        }
+        
+        .drop-zone.active {
+            background-color: var(--highlight-color);
+            opacity: 0.7;
+        }
+        
+        /* 下拉菜单 */
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .dropdown-menu {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            min-width: 180px;
+            margin-top: 4px;
+            border: 2px solid currentColor;
+            background-color: inherit;
+            border-radius: 4px;
+            box-shadow: 3px 3px 0 rgba(0,0,0,0.1);
+            z-index: 100;
+            display: none;
+            animation: fadeIn 0.2s;
+        }
+        
+        .dropdown-menu.show {
+            display: block;
+        }
+        
+        .dropdown-item {
+            display: block;
+            width: 100%;
+            padding: 8px 12px;
+            text-align: left;
+            background: none;
+            border: none;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .dropdown-item:hover {
+            background-color: var(--highlight-color);
+        }
+        
+        /* 模态框 */
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+        }
+        
+        .modal-backdrop.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .modal-content {
+            padding: 20px;
+            border: 2px solid currentColor;
+            background-color: inherit;
+            border-radius: 4px;
+            min-width: 300px;
+            max-width: 500px;
+            transform: translateY(-20px);
+            transition: all 0.3s;
+        }
+        
+        .modal-backdrop.show .modal-content {
+            transform: translateY(0);
+        }
+        
+        /* 通知 */
+        .notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 12px 18px;
+            border: 2px solid currentColor;
+            background-color: inherit;
+            border-radius: 4px;
+            box-shadow: 3px 3px 0 rgba(0,0,0,0.1);
+            z-index: 1000;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.5s;
+        }
+        
+        .notification.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        
+        /* 结果容器和复制按钮 */
+        .result-container {
+            position: relative;
+        }
+        
+        .copy-btn-container {
+            position: absolute;
+            bottom: 12px;
+            right: 12px;
+            z-index: 10;
+        }
+        
+        .copy-btn-container .sketch-btn {
+            padding: 4px 8px;
+            font-size: 0.9em;
+        }
+        
+        /* 烟花动画容器 */
+        .fireworks-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+            overflow: hidden;
+        }
+        
+        .firework {
+            position: absolute;
+            width: 5px;
+            height: 5px;
+            background-color: #f00;
+            border-radius: 50%;
+            opacity: 0;
+        }
+        
+        .ribbon {
+            position: absolute;
+            width: 10px;
+            height: 100px;
+            opacity: 0;
+            transform-origin: top center;
+        }
+        
+        /* 高亮样式 */
+        .highlight-replaced {
+            background-color: #FFD700;
+            padding: 0 2px;
+            border-radius: 2px;
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { background-color: #FFD700; }
+            50% { background-color: #FFA500; }
+            100% { background-color: #FFD700; }
+        }
+        
+        /* 词表编辑样式 */
+        .word-pair {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+        
+        .word-input {
+            flex: 1;
+            padding: 6px;
+            border: 2px solid currentColor;
+            background-color: inherit;
+            font-family: inherit;
+        }
+        
+        .swap-btn {
+            padding: 4px 8px;
+            margin: 0 5px;
+            background-color: inherit;
+            border: 1px solid currentColor;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .add-word-btn {
+            width: 100%;
+            margin-top: 10px;
+        }
+        
+        /* 动画 */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        
+        .slide-in {
+            animation: slideIn 0.5s ease-out forwards;
+        }
+        
+        /* 布局 */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            animation: fadeIn 0.8s ease-out;
+        }
+        
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 25px;
+        }
+        
+        @media (min-width: 768px) {
+            .main-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        
+        @media (min-width: 1200px) {
+            .main-grid {
+                grid-template-columns: 3fr 3fr 2fr;
+            }
+        }
+        
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+        }
+        
+        .card-title {
+            display: flex;
+            align-items: center;
+            margin-top: 0;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 1px dashed currentColor;
+        }
+        
+        .card-title i {
+            margin-right: 8px;
+        }
+        
+        .text-input, .text-output {
+            width: 100%;
+            min-height: 200px;
+            padding: 12px;
+            border: none;
+            background-color: transparent;
+            font-family: inherit;
+            font-size: 1em;
+            resize: vertical;
+        }
+        
+        .text-output {
+            overflow: auto;
+            white-space: pre-wrap;
+        }
+        
+        .command-actions {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .word-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+            padding-right: 5px;
+        }
+        
+        /* 积木盒优化 */
+        .blocks-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+        }
+        
+        @media (min-width: 360px) {
+            .blocks-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        
+        /* 工具类 */
+        .mb-4 {
+            margin-bottom: 16px;
+        }
+        
+        .mb-6 {
+            margin-bottom: 24px;
+        }
+        
+        .text-center {
+            text-align: center;
+        }
+        
+        .flex {
+            display: flex;
+        }
+        
+        .justify-between {
+            justify-content: space-between;
+        }
+        
+        .justify-center {
+            justify-content: center;
+        }
+        
+        .items-center {
+            align-items: center;
+        }
+        
+        .gap-4 {
+            gap: 16px;
+        }
+        
+        .p-3 {
+            padding: 12px;
+        }
+        
+        .w-full {
+            width: 100%;
+        }
+        
+        .outline-none {
+            outline: none;
+        }
+        
+        .overflow-auto {
+            overflow: auto;
+        }
+    </style>
+</head>
+<body class="theme-light">
+    <!-- 烟花容器 -->
+    <div class="fireworks-container" id="fireworksContainer"></div>
+
+    <!-- 主题切换器 -->
+    <div style="position: fixed; top: 20px; right: 20px; z-index: 100;">
+        <button id="themeToggle" class="sketch-btn">
+            <i class="fa fa-paint-brush"></i>
+        </button>
+        <div id="themeDropdown" class="dropdown-menu">
+            <h3 style="padding: 8px 12px; margin: 0; border-bottom: 1px dashed currentColor;">背景主题</h3>
+            
+            <div style="padding: 8px 12px; border-bottom: 1px dashed currentColor;">
+                <p style="margin: 0 0 8px 0; font-size: 0.9em; opacity: 0.8;">预设背景:</p>
+                <div style="display: flex; align-items: center; margin-bottom: 4px; cursor: pointer;" data-bg="grid">
+                    <span style="display: inline-block; width: 16px; height: 16px; margin-right: 8px; border: 1px solid currentColor; background-color: #F9F7F3; background-image: linear-gradient(to right, rgba(160, 150, 130, 0.15) 1px, transparent 1px), linear-gradient(to bottom, rgba(160, 150, 130, 0.15) 1px, transparent 1px); background-size: 20px 20px;"></span>
+                    <span>方格纸</span>
+                </div>
+                <div style="display: flex; align-items: center; cursor: pointer;" data-bg="plain">
+                    <span style="display: inline-block; width: 16px; height: 16px; margin-right: 8px; border: 1px solid currentColor; background-color: #F9F7F3;"></span>
+                    <span>空白纸</span>
+                </div>
+            </div>
+            
+            <div style="padding: 8px 12px;">
+                <p style="margin: 0 0 8px 0; font-size: 0.9em; opacity: 0.8;">主题模式:</p>
+                <div style="display: flex; align-items: center; margin-bottom: 4px; cursor: pointer;" data-theme="light">
+                    <span style="display: inline-block; width: 16px; height: 16px; margin-right: 8px; border: 1px solid #333333; background-color: #F9F7F3;"></span>
+                    <span>浅色模式</span>
+                </div>
+                <div style="display: flex; align-items: center; cursor: pointer;" data-theme="dark">
+                    <span style="display: inline-block; width: 16px; height: 16px; margin-right: 8px; border: 1px solid #E0E0E0; background-color: #2C2C2C;"></span>
+                    <span>深色模式</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- 标题区域 -->
+        <header class="header">
+            <h1 style="font-size: clamp(2rem, 5vw, 3.5rem); margin-bottom: 16px; position: relative; display: inline-block;">
+                文本草稿处理器
+                <span style="position: absolute; top: -10px; right: -20px; transform: rotate(10deg);">
+                    <i class="fa fa-pencil text-amber-600"></i>
+                </span>
+            </h1>
+            <p style="max-width: 600px; margin: 0 auto; opacity: 0.8;">
+                拖放命令积木，轻松处理文本，特别优化OCR识别结果修正
+            </p>
+        </header>
+
+        <!-- 主内容区域 -->
+        <main class="main-grid">
+            <!-- 左侧：输入区域和命令槽 -->
+            <div class="slide-in" style="animation-delay: 0.1s">
+                <div class="card mb-6">
+                    <h2 class="card-title">
+                        <i class="fa fa-pencil-square-o"></i>输入文本
+                    </h2>
+                    <div class="sketch-border p-3">
+                        <div id="inputContainer" class="w-full min-h-[200px] p-3 outline-none" contenteditable="true" placeholder="在这里输入要处理的文本..."></div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 class="card-title" style="margin-bottom: 0;">
+                            <i class="fa fa-list-ol"></i>命令槽
+                        </h2>
+                        
+                        <!-- 命令组下拉列表 -->
+                        <div class="dropdown">
+                            <button id="commandSetDropdownBtn" class="sketch-btn">
+                                <i class="fa fa-folder-open-o mr-1"></i>命令组
+                            </button>
+                            <div id="commandSetDropdown" class="dropdown-menu">
+                                <button class="dropdown-item" id="saveCurrentSet">
+                                    <i class="fa fa-save mr-1"></i>保存当前命令组
+                                </button>
+                                <div style="border-top: 1px dashed currentColor; margin: 4px 0;"></div>
+                                <div id="savedSetsContainer">
+                                    <!-- 保存的命令组将在这里动态显示 -->
+                                    <p class="dropdown-item" style="opacity: 0.7;" id="noSavedSetsMsg">暂无保存的命令组</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="commandSlot" class="drop-zone">
+                        <p style="text-align: center; margin: 60px 0; opacity: 0.7;">将积木拖到这里...</p>
+                    </div>
+                    
+                    <div class="command-actions">
+                        <button id="executeCommands" class="sketch-btn">
+                            <i class="fa fa-play mr-1"></i>执行
+                        </button>
+                        <button id="clearCommands" class="sketch-btn">
+                            <i class="fa fa-trash-o mr-1"></i>清空
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 中间：输出区域 -->
+            <div class="slide-in" style="animation-delay: 0.2s">
+                <div class="card">
+                    <h2 class="card-title">
+                        <i class="fa fa-file-text-o"></i>处理结果
+                    </h2>
+                    <!-- 结果容器，用于定位右下角的复制按钮 -->
+                    <div class="result-container">
+                        <div class="sketch-border p-3">
+                            <div id="outputText" class="text-output"></div>
+                        </div>
+                        <!-- 复制按钮放在结果框右下角 -->
+                        <div class="copy-btn-container">
+                            <button id="copyResult" class="sketch-btn">
+                                <i class="fa fa-copy mr-1"></i>复制
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧：积木盒 -->
+            <div class="slide-in" style="animation-delay: 0.3s">
+                <div class="card">
+                    <h2 class="card-title">
+                        <i class="fa fa-cubes"></i>命令积木盒
+                    </h2>
+                    <div class="sketch-border p-3">
+                        <div style="margin-bottom: 20px;">
+                            <h3 style="margin: 0 0 8px 0; padding-bottom: 4px; border-bottom: 1px dashed currentColor; font-size: 1.1em;">文本样式</h3>
+                            <div class="blocks-grid">
+                                <div class="draggable-block" draggable="true" data-command="italic">
+                                    <span><i class="fa fa-italic mr-1"></i>斜体</span>
+                                    <span></span>
+                                </div>
+                                <div class="draggable-block" draggable="true" data-command="bold">
+                                    <span><i class="fa fa-bold mr-1"></i>粗体</span>
+                                    <span></span>
+                                </div>
+                                <div class="draggable-block" draggable="true" data-command="color">
+                                    <span><i class="fa fa-paint-brush mr-1"></i>改色</span>
+                                    <span><i class="fa fa-pencil"></i></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom: 20px;">
+                            <h3 style="margin: 0 0 8px 0; padding-bottom: 4px; border-bottom: 1px dashed currentColor; font-size: 1.1em;">替换</h3>
+                            <div class="blocks-grid">
+                                <div class="draggable-block" draggable="true" data-command="replace">
+                                    <span><i class="fa fa-exchange mr-1"></i>替换字符</span>
+                                    <span><i class="fa fa-pencil"></i></span>
+                                </div>
+                                <div class="draggable-block" draggable="true" data-command="wordlist">
+                                    <span><i class="fa fa-book mr-1"></i>词表替换</span>
+                                    <span><i class="fa fa-pencil"></i></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom: 20px;">
+                            <h3 style="margin: 0 0 8px 0; padding-bottom: 4px; border-bottom: 1px dashed currentColor; font-size: 1.1em;">格式处理</h3>
+                            <div class="blocks-grid">
+                                <div class="draggable-block" draggable="true" data-command="linebreak">
+                                    <span><i class="fa fa-align-left mr-1"></i>换行切分</span>
+                                    <span><i class="fa fa-pencil"></i></span>
+                                </div>
+                                <div class="draggable-block" draggable="true" data-command="fullwidth">
+                                    <span><i class="fa fa-font mr-1"></i>全角标点</span>
+                                    <span></span>
+                                </div>
+                                <div class="draggable-block" draggable="true" data-command="halfwidth">
+                                    <span><i class="fa fa-font mr-1"></i>半角标点</span>
+                                    <span></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h3 style="margin: 0 0 8px 0; padding-bottom: 4px; border-bottom: 1px dashed currentColor; font-size: 1.1em;">删除</h3>
+                            <div class="blocks-grid">
+                                <div class="draggable-block" draggable="true" data-command="spaces">
+                                    <span><i class="fa fa-eraser mr-1"></i>删除空格</span>
+                                    <span></span>
+                                </div>
+                                <div class="draggable-block" draggable="true" data-command="newlines">
+                                    <span><i class="fa fa-eraser mr-1"></i>删除换行</span>
+                                    <span></span>
+                                </div>
+                                <div class="draggable-block" draggable="true" data-command="specific">
+                                    <span><i class="fa fa-eraser mr-1"></i>删特定符号</span>
+                                    <span><i class="fa fa-pencil"></i></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 模态框：命令参数设置 -->
+    <div id="commandModal" class="modal-backdrop">
+        <div class="modal-content">
+            <h3 style="margin-top: 0;">设置命令参数</h3>
+            <div id="modalContent" style="margin-bottom: 20px;">
+                <!-- 参数内容将通过JS动态生成 -->
+            </div>
+            <div class="flex justify-end gap-4">
+                <button id="cancelParam" class="sketch-btn">取消</button>
+                <button id="confirmParam" class="sketch-btn" style="background-color: var(--highlight-color);">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 模态框：换行切分参数设置 -->
+    <div id="linebreakModal" class="modal-backdrop">
+        <div class="modal-content">
+            <h3 style="margin-top: 0;">设置换行切分参数</h3>
+            <div style="margin-bottom: 20px;">
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; margin-bottom: 4px;">切分符号：</label>
+                    <input type="text" id="breakSymbols" style="width: 100%; padding: 6px; border: 2px solid currentColor; background-color: inherit; font-family: inherit;" value=";">
+                    <p style="margin: 4px 0 0 0; font-size: 0.9em; opacity: 0.7;">多个符号用逗号分隔，例如：;，。</p>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 4px;">换行符类型：</label>
+                    <div style="display: flex; gap: 10px; margin-top: 8px;">
+                        <label style="display: flex; align-items: center;">
+                            <input type="radio" name="linebreakType" value="br" checked style="margin-right: 5px;"> HTML换行(&lt;br&gt;)
+                        </label>
+                        <label style="display: flex; align-items: center;">
+                            <input type="radio" name="linebreakType" value="lf" style="margin-right: 5px;"> 换行符(\n)
+                        </label>
+                        <label style="display: flex; align-items: center;">
+                            <input type="radio" name="linebreakType" value="crlf" style="margin-right: 5px;"> 回车换行(\r\n)
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end gap-4">
+                <button id="cancelLinebreak" class="sketch-btn">取消</button>
+                <button id="confirmLinebreak" class="sketch-btn" style="background-color: var(--highlight-color);">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 模态框：词表编辑 -->
+    <div id="wordlistModal" class="modal-backdrop">
+        <div class="modal-content">
+            <h3 style="margin-top: 0;">编辑替换词表（OCR纠错）</h3>
+            <p style="opacity: 0.7; margin-bottom: 15px; font-size: 0.9em;">添加OCR识别中常见的错误替换对，左侧为错误文本，右侧为正确文本</p>
+            <div id="wordlistContent" style="margin-bottom: 20px;">
+                <div class="word-list" id="wordPairsContainer">
+                    <!-- 词对将在这里动态生成 -->
+                </div>
+                <button id="addWordPair" class="sketch-btn add-word-btn">
+                    <i class="fa fa-plus mr-1"></i>添加替换对
+                </button>
+            </div>
+            <div class="flex justify-end gap-4">
+                <button id="cancelWordlist" class="sketch-btn">取消</button>
+                <button id="confirmWordlist" class="sketch-btn" style="background-color: var(--highlight-color);">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 模态框：保存命令组 -->
+    <div id="saveSetModal" class="modal-backdrop">
+        <div class="modal-content">
+            <h3 style="margin-top: 0;">保存命令组</h3>
+            <div style="margin-bottom: 20px;">
+                <div>
+                    <label style="display: block; margin-bottom: 4px;">命令组名称：</label>
+                    <input type="text" id="commandSetName" style="width: 100%; padding: 6px; border: 2px solid currentColor; background-color: inherit; font-family: inherit;">
+                </div>
+            </div>
+            <div class="flex justify-end gap-4">
+                <button id="cancelSaveSet" class="sketch-btn">取消</button>
+                <button id="confirmSaveSet" class="sketch-btn" style="background-color: var(--highlight-color);">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 通知提示 -->
+    <div id="notification" class="notification">
+        <p id="notificationText" style="margin: 0;">操作成功！</p>
+    </div>
+
+    <script>
+        // 全局变量
+        let currentTheme = 'light';
+        let currentBackground = 'grid';
+        let savedCommandSets = JSON.parse(localStorage.getItem('textProcessorCommands')) || [];
+        let ocrWordPairs = JSON.parse(localStorage.getItem('ocrWordPairs')) || [
+            // 初始化OCR常见错误替换词表（不包含重复成对的词语）
+            { from: '入', to: '人' },
+            { from: '渠', to: '梁' },
+            { from: '己', to: '已' },
+            { from: '未', to: '末' },
+            { from: '辩', to: '辨' },
+            { from: '即', to: '既' },
+            { from: '在', to: '再' },
+            { from: '象', to: '像' }
+        ];
+        let currentWordPairIndex = 0;
+        let replacedPositions = []; // 存储被替换的位置信息
+        
+        // DOM元素
+        const body = document.body;
+        const commandSlot = document.getElementById('commandSlot');
+        const outputText = document.getElementById('outputText');
+        const copyBtn = document.getElementById('copyResult');
+        const inputContainer = document.getElementById('inputContainer');
+        const fireworksContainer = document.getElementById('fireworksContainer');
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 从本地存储加载设置
+            loadSettings();
+            
+            // 设置CSS变量
+            updateCssVariables();
+            
+            // 初始化命令组列表
+            updateCommandSetDropdown();
+            
+            // 初始化词表
+            renderWordPairs();
+            
+            // 设置事件监听
+            setupEventListeners();
+        });
+        
+        // 从本地存储加载设置
+        function loadSettings() {
+            const savedTheme = localStorage.getItem('textProcessorTheme');
+            const savedBg = localStorage.getItem('textProcessorBackground');
+            
+            if (savedTheme) {
+                currentTheme = savedTheme;
+                body.classList.remove('theme-light', 'theme-dark');
+                body.classList.add(`theme-${currentTheme}`);
+            }
+            
+            if (savedBg) {
+                currentBackground = savedBg;
+                applyBackground(currentBackground);
+            }
+        }
+        
+        // 更新CSS变量
+        function updateCssVariables() {
+            const root = document.documentElement;
+            const isDark = currentTheme === 'dark';
+            
+            root.style.setProperty('--highlight-color', isDark ? '#4A4A4A' : '#F0E6D2');
+            root.style.setProperty('--card-bg', isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.5)');
+        }
+        
+        // 设置事件监听
+        function setupEventListeners() {
+            // 主题切换按钮
+            document.getElementById('themeToggle').addEventListener('click', function(e) {
+                e.stopPropagation();
+                document.getElementById('themeDropdown').classList.toggle('show');
+            });
+            
+            // 点击外部关闭下拉菜单
+            document.addEventListener('click', function(e) {
+                const dropdowns = [
+                    document.getElementById('themeDropdown'),
+                    document.getElementById('commandSetDropdown')
+                ];
+                
+                dropdowns.forEach(dropdown => {
+                    if (!dropdown.contains(e.target) && 
+                        e.target.id !== 'themeToggle' && 
+                        e.target.id !== 'commandSetDropdownBtn') {
+                        dropdown.classList.remove('show');
+                    }
+                });
+            });
+            
+            // 主题模式切换
+            document.querySelectorAll('[data-theme]').forEach(el => {
+                el.addEventListener('click', function() {
+                    const theme = this.dataset.theme;
+                    currentTheme = theme;
+                    body.classList.remove('theme-light', 'theme-dark');
+                    body.classList.add(`theme-${theme}`);
+                    updateCssVariables();
+                    localStorage.setItem('textProcessorTheme', theme);
+                    document.getElementById('themeDropdown').classList.remove('show');
+                    showNotification(`已切换到${theme === 'light' ? '浅色' : '深色'}模式`);
+                });
+            });
+            
+            // 背景切换
+            document.querySelectorAll('[data-bg]').forEach(el => {
+                el.addEventListener('click', function() {
+                    const bg = this.dataset.bg;
+                    currentBackground = bg;
+                    applyBackground(bg);
+                    localStorage.setItem('textProcessorBackground', bg);
+                    document.getElementById('themeDropdown').classList.remove('show');
+                    showNotification(`已应用${getBgName(bg)}背景`);
+                });
+            });
+            
+            // 命令组下拉按钮
+            document.getElementById('commandSetDropdownBtn').addEventListener('click', function(e) {
+                e.stopPropagation();
+                document.getElementById('commandSetDropdown').classList.toggle('show');
+            });
+            
+            // 保存当前命令组
+            document.getElementById('saveCurrentSet').addEventListener('click', function() {
+                const commands = commandSlot.querySelectorAll('.draggable-block');
+                if (commands.length === 0) {
+                    showNotification('请先添加命令到命令槽');
+                    return;
+                }
+                
+                // 显示保存模态框
+                document.getElementById('saveSetModal').classList.add('show');
+                document.getElementById('commandSetName').value = '';
+                document.getElementById('commandSetName').focus();
+            });
+            
+            // 确认保存命令组
+            document.getElementById('confirmSaveSet').addEventListener('click', saveCurrentCommandSet);
+            
+            // 取消保存命令组
+            document.getElementById('cancelSaveSet').addEventListener('click', function() {
+                document.getElementById('saveSetModal').classList.remove('show');
+            });
+            
+            // 执行命令
+            document.getElementById('executeCommands').addEventListener('click', executeCommands);
+            
+            // 清空命令槽
+            document.getElementById('clearCommands').addEventListener('click', clearCommandSlot);
+            
+            // 复制结果
+            copyBtn.addEventListener('click', copyToClipboard);
+            
+            // 拖拽功能
+            setupDragAndDrop();
+            
+            // 词表编辑相关
+            document.getElementById('addWordPair').addEventListener('click', addWordPair);
+            document.getElementById('confirmWordlist').addEventListener('click', saveWordPairs);
+            document.getElementById('cancelWordlist').addEventListener('click', function() {
+                document.getElementById('wordlistModal').classList.remove('show');
+            });
+            
+            // 换行切分模态框相关
+            document.getElementById('cancelLinebreak').addEventListener('click', function() {
+                document.getElementById('linebreakModal').classList.remove('show');
+            });
+        }
+        
+        // 应用背景
+        function applyBackground(bgType) {
+            // 移除所有背景类
+            body.classList.remove('bg-grid', 'bg-plain');
+            
+            // 应用背景
+            if (bgType === 'grid') {
+                body.classList.add('bg-grid');
+            } else if (bgType === 'plain') {
+                // 空白背景，不添加类
+            }
+        }
+        
+        // 获取背景名称
+        function getBgName(bgType) {
+            const names = {
+                'grid': '方格纸',
+                'plain': '空白纸'
+            };
+            return names[bgType] || bgType;
+        }
+        
+        // 更新命令组下拉列表
+        function updateCommandSetDropdown() {
+            const container = document.getElementById('savedSetsContainer');
+            const noSetsMsg = document.getElementById('noSavedSetsMsg');
+            
+            // 清除现有内容（保留消息元素）
+            Array.from(container.children).forEach(child => {
+                if (child !== noSetsMsg) child.remove();
+            });
+            
+            // 检查是否有保存的命令组
+            if (savedCommandSets.length === 0) {
+                noSetsMsg.classList.remove('hidden');
+                return;
+            }
+            
+            // 隐藏无命令组消息
+            noSetsMsg.classList.add('hidden');
+            
+            // 添加保存的命令组
+            savedCommandSets.forEach((set, index) => {
+                const button = document.createElement('button');
+                button.className = 'dropdown-item';
+                button.innerHTML = `
+                    <span style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                        <span><i class="fa fa-list mr-1"></i>${set.name}</span>
+                        <button class="delete-set-btn" data-index="${index}" style="background: none; border: none; cursor: pointer; color: inherit;">
+                            <i class="fa fa-trash-o"></i>
+                        </button>
+                    </span>
+                `;
+                
+                // 加载命令组
+                button.addEventListener('click', (e) => {
+                    if (!e.target.closest('.delete-set-btn')) {
+                        loadCommandSet(index);
+                        document.getElementById('commandSetDropdown').classList.remove('show');
+                    }
+                });
+                
+                // 删除命令组
+                button.querySelector('.delete-set-btn').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (confirm(`确定要删除命令组"${set.name}"吗？`)) {
+                        savedCommandSets.splice(index, 1);
+                        localStorage.setItem('textProcessorCommands', JSON.stringify(savedCommandSets));
+                        updateCommandSetDropdown();
+                    }
+                });
+                
+                container.appendChild(button);
+            });
+        }
+        
+        // 保存当前命令组
+        function saveCurrentCommandSet() {
+            const setName = document.getElementById('commandSetName').value.trim();
+            
+            if (!setName) {
+                showNotification('请输入命令组名称');
+                return;
+            }
+            
+            // 检查是否已存在同名命令组
+            const existingIndex = savedCommandSets.findIndex(set => set.name === setName);
+            if (existingIndex !== -1) {
+                if (!confirm('已存在同名命令组，是否覆盖？')) {
+                    return;
+                }
+            }
+            
+            // 收集命令槽中的命令
+            const commands = [];
+            document.querySelectorAll('#commandSlot .draggable-block').forEach(commandEl => {
+                commands.push({
+                    command: commandEl.dataset.command,
+                    params: commandEl.dataset.params ? JSON.parse(commandEl.dataset.params) : {}
+                });
+            });
+            
+            // 保存到本地存储
+            if (existingIndex !== -1) {
+                savedCommandSets[existingIndex] = { name: setName, commands: commands };
+            } else {
+                savedCommandSets.push({ name: setName, commands: commands });
+            }
+            
+            localStorage.setItem('textProcessorCommands', JSON.stringify(savedCommandSets));
+            
+            // 刷新下拉列表
+            updateCommandSetDropdown();
+            
+            // 关闭模态框
+            document.getElementById('saveSetModal').classList.remove('show');
+            
+            showNotification(`命令组"${setName}"已保存`);
+        }
+        
+        // 加载命令组
+        function loadCommandSet(index) {
+            const commandSet = savedCommandSets[index];
+            if (!commandSet) return;
+            
+            // 清空命令槽
+            commandSlot.innerHTML = '';
+            
+            // 添加命令
+            commandSet.commands.forEach(cmdData => {
+                const commandElement = createCommandElement(cmdData.command);
+                
+                // 设置参数
+                if (cmdData.params) {
+                    commandElement.dataset.params = JSON.stringify(cmdData.params);
+                }
+                
+                commandSlot.appendChild(commandElement);
+            });
+            
+            showNotification(`已加载命令组: ${commandSet.name}`);
+        }
+        
+        // 设置拖拽功能
+        function setupDragAndDrop() {
+            // 为所有可拖拽元素添加事件
+            document.querySelectorAll('[draggable="true"]').forEach(block => {
+                block.addEventListener('dragstart', function(e) {
+                    e.dataTransfer.setData('text/plain', this.dataset.command);
+                    this.style.opacity = '0.5';
+                    this.style.transform = 'scale(0.95)';
+                });
+                
+                block.addEventListener('dragend', function() {
+                    this.style.opacity = '1';
+                    this.style.transform = 'scale(1)';
+                });
+            });
+            
+            // 命令槽拖拽事件
+            commandSlot.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                this.classList.add('active');
+            });
+            
+            commandSlot.addEventListener('dragleave', function() {
+                this.classList.remove('active');
+            });
+            
+            commandSlot.addEventListener('drop', function(e) {
+                e.preventDefault();
+                this.classList.remove('active');
+                
+                // 清除初始提示文本
+                if (this.querySelector('p')) {
+                    this.innerHTML = '';
+                }
+                
+                const command = e.dataTransfer.getData('text/plain');
+                const commandElement = createCommandElement(command);
+                this.appendChild(commandElement);
+                
+                // 添加元素动画
+                commandElement.style.opacity = '0';
+                commandElement.style.transform = 'translateY(10px)';
+                setTimeout(() => {
+                    commandElement.style.opacity = '1';
+                    commandElement.style.transform = 'translateY(0)';
+                }, 50);
+            });
+        }
+        
+        // 创建命令元素
+        function createCommandElement(command) {
+            const commands = {
+                'italic': { icon: 'fa-italic', text: '斜体', hasParams: false },
+                'bold': { icon: 'fa-bold', text: '粗体', hasParams: false },
+                'color': { icon: 'fa-paint-brush', text: '改色', hasParams: true },
+                'replace': { icon: 'fa-exchange', text: '替换字符', hasParams: true },
+                'wordlist': { icon: 'fa-book', text: '词表替换', hasParams: true },
+                'fullwidth': { icon: 'fa-font', text: '全角标点', hasParams: false },
+                'halfwidth': { icon: 'fa-font', text: '半角标点', hasParams: false },
+                'spaces': { icon: 'fa-eraser', text: '删除空格', hasParams: false },
+                'newlines': { icon: 'fa-eraser', text: '删除换行', hasParams: false },
+                'specific': { icon: 'fa-eraser', text: '删特定符号', hasParams: true },
+                'linebreak': { icon: 'fa-align-left', text: '换行切分', hasParams: true }
+            };
+            
+            const div = document.createElement('div');
+            div.className = 'draggable-block';
+            div.draggable = true;
+            div.dataset.command = command;
+            
+            const editBtn = commands[command].hasParams ? 
+                `<span><i class="fa fa-pencil"></i></span>` : '<span></span>';
+            
+            div.innerHTML = `
+                <span><i class="fa ${commands[command].icon} mr-1"></i>${commands[command].text}</span>
+                ${editBtn}
+            `;
+            
+            // 添加删除按钮
+            const deleteBtn = document.createElement('button');
+            deleteBtn.innerHTML = '<i class="fa fa-times"></i>';
+            deleteBtn.style.background = 'none';
+            deleteBtn.style.border = 'none';
+            deleteBtn.style.cursor = 'pointer';
+            deleteBtn.style.color = 'inherit';
+            deleteBtn.style.marginLeft = '8px';
+            
+            deleteBtn.addEventListener('click', function() {
+                // 删除动画
+                div.style.transform = 'translateX(10px)';
+                div.style.opacity = '0';
+                setTimeout(() => {
+                    div.remove();
+                    if (commandSlot.children.length === 0) {
+                        commandSlot.innerHTML = '<p style="text-align: center; margin: 60px 0; opacity: 0.7;">将积木拖到这里...</p>';
+                    }
+                }, 200);
+            });
+            
+            // 将删除按钮添加到右侧
+            div.querySelector('span:last-child').appendChild(deleteBtn);
+            
+            // 如果有参数，添加编辑事件
+            if (commands[command].hasParams) {
+                div.querySelector('i.fa-pencil').parentElement.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    
+                    // 词表替换有专门的模态框
+                    if (command === 'wordlist') {
+                        document.getElementById('wordlistModal').classList.add('show');
+                        currentWordPairIndex = -1; // 表示是新的词表编辑
+                    } 
+                    // 换行切分有专门的模态框
+                    else if (command === 'linebreak') {
+                        document.getElementById('linebreakModal').classList.add('show');
+                        // 绑定确认按钮事件
+                        document.getElementById('confirmLinebreak').onclick = function() {
+                            const symbols = document.getElementById('breakSymbols').value;
+                            let linebreakType = 'br';
+                            
+                            // 获取选中的换行符类型
+                            const radioButtons = document.querySelectorAll('input[name="linebreakType"]');
+                            for (const radio of radioButtons) {
+                                if (radio.checked) {
+                                    linebreakType = radio.value;
+                                    break;
+                                }
+                            }
+                            
+                            // 保存参数
+                            const params = {
+                                symbols: symbols,
+                                linebreakType: linebreakType
+                            };
+                            
+                            div.dataset.params = JSON.stringify(params);
+                            
+                            // 关闭模态框
+                            document.getElementById('linebreakModal').classList.remove('show');
+                            showNotification('换行切分参数已设置');
+                        };
+                    }
+                    else {
+                        showParameterModal(command, div);
+                    }
+                });
+            }
+            
+            // 拖拽事件
+            div.addEventListener('dragstart', function() {
+                this.style.opacity = '0.5';
+                this.style.transform = 'scale(0.95)';
+            });
+            
+            div.addEventListener('dragend', function() {
+                this.style.opacity = '1';
+                this.style.transform = 'scale(1)';
+            });
+            
+            return div;
+        }
+        
+        // 渲染词表替换对
+        function renderWordPairs() {
+            const container = document.getElementById('wordPairsContainer');
+            container.innerHTML = '';
+            
+            ocrWordPairs.forEach((pair, index) => {
+                const pairElement = document.createElement('div');
+                pairElement.className = 'word-pair';
+                pairElement.innerHTML = `
+                    <input type="text" class="word-input from-word" value="${escapeHtml(pair.from)}" placeholder="错误文本">
+                    <button class="swap-btn" data-index="${index}">
+                        <i class="fa fa-exchange"></i>
+                    </button>
+                    <input type="text" class="word-input to-word" value="${escapeHtml(pair.to)}" placeholder="正确文本">
+                    <button class="delete-word-btn sketch-btn" data-index="${index}" style="padding: 2px 6px;">
+                        <i class="fa fa-times"></i>
+                    </button>
+                `;
+                container.appendChild(pairElement);
+                
+                // 添加删除事件
+                pairElement.querySelector('.delete-word-btn').addEventListener('click', function() {
+                    const idx = parseInt(this.dataset.index);
+                    ocrWordPairs.splice(idx, 1);
+                    renderWordPairs();
+                });
+                
+                // 添加交换事件
+                pairElement.querySelector('.swap-btn').addEventListener('click', function() {
+                    const idx = parseInt(this.dataset.index);
+                    // 交换from和to的值
+                    const temp = ocrWordPairs[idx].from;
+                    ocrWordPairs[idx].from = ocrWordPairs[idx].to;
+                    ocrWordPairs[idx].to = temp;
+                    
+                    // 更新输入框显示
+                    const fromInput = pairElement.querySelector('.from-word');
+                    const toInput = pairElement.querySelector('.to-word');
+                    fromInput.value = ocrWordPairs[idx].from;
+                    toInput.value = ocrWordPairs[idx].to;
+                });
+            });
+        }
+        
+        // 添加新的词对
+        function addWordPair() {
+            ocrWordPairs.push({ from: '', to: '' });
+            renderWordPairs();
+            
+            // 聚焦到新添加的输入框
+            const inputs = document.querySelectorAll('.from-word');
+            inputs[inputs.length - 1].focus();
+        }
+        
+        // 保存词表
+        function saveWordPairs() {
+            const fromInputs = document.querySelectorAll('.from-word');
+            const toInputs = document.querySelectorAll('.to-word');
+            
+            // 清空现有词表
+            ocrWordPairs = [];
+            
+            // 收集所有有效词对并避免重复
+            const addedPairs = new Set();
+            
+            for (let i = 0; i < fromInputs.length; i++) {
+                const from = fromInputs[i].value.trim();
+                const to = toInputs[i].value.trim();
+                
+                if (from && to && from !== to) {
+                    // 检查是否已添加反向对
+                    const reverseKey = `${to}|${from}`;
+                    if (!addedPairs.has(`${from}|${to}`) && !addedPairs.has(reverseKey)) {
+                        ocrWordPairs.push({ from, to });
+                        addedPairs.add(`${from}|${to}`);
+                    }
+                }
+            }
+            
+            // 保存到本地存储
+            localStorage.setItem('ocrWordPairs', JSON.stringify(ocrWordPairs));
+            
+            // 关闭模态框
+            document.getElementById('wordlistModal').classList.remove('show');
+            
+            showNotification('词表已更新');
+        }
+        
+        // 显示参数模态框
+        function showParameterModal(command, element) {
+            const modal = document.getElementById('commandModal');
+            const title = modal.querySelector('h3');
+            const content = document.getElementById('modalContent');
+            
+            title.textContent = `设置${getCommandName(command)}参数`;
+            content.innerHTML = '';
+            
+            // 根据命令类型生成不同的参数表单
+            switch(command) {
+                case 'color':
+                    content.innerHTML = `
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 4px;">颜色：</label>
+                            <input type="color" id="colorValue" style="width: 40px; height: 40px; padding: 0; border: 2px solid currentColor;" value="#000000">
+                        </div>
+                    `;
+                    break;
+                case 'replace':
+                    content.innerHTML = `
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 4px;">查找：</label>
+                            <input type="text" id="findText" style="width: 100%; padding: 6px; border: 2px solid currentColor; background-color: inherit; font-family: inherit;">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 4px;">替换为：</label>
+                            <input type="text" id="replaceText" style="width: 100%; padding: 6px; border: 2px solid currentColor; background-color: inherit; font-family: inherit;">
+                        </div>
+                    `;
+                    break;
+                case 'specific':
+                    content.innerHTML = `
+                        <div>
+                            <label style="display: block; margin-bottom: 4px;">要删除的符号：</label>
+                            <input type="text" id="symbolsToDelete" style="width: 100%; padding: 6px; border: 2px solid currentColor; background-color: inherit; font-family: inherit;">
+                            <p style="margin: 4px 0 0 0; font-size: 0.9em; opacity: 0.7;">例如：输入 ",.? 表示删除逗号、句号、问号和空格</p>
+                        </div>
+                    `;
+                    break;
+            }
+            
+            // 如果有现有参数，填充表单
+            if (element.dataset.params) {
+                const params = JSON.parse(element.dataset.params);
+                switch(command) {
+                    case 'color':
+                        document.getElementById('colorValue').value = params.color || '#000000';
+                        break;
+                    case 'replace':
+                        document.getElementById('findText').value = params.find || '';
+                        document.getElementById('replaceText').value = params.replace || '';
+                        break;
+                    case 'specific':
+                        document.getElementById('symbolsToDelete').value = params.symbols || '';
+                        break;
+                }
+            }
+            
+            // 显示模态框
+            modal.classList.add('show');
+            
+            // 确认按钮事件
+            document.getElementById('confirmParam').onclick = function() {
+                // 保存参数
+                let params = {};
+                switch(command) {
+                    case 'color':
+                        params.color = document.getElementById('colorValue').value;
+                        break;
+                    case 'replace':
+                        params.find = document.getElementById('findText').value;
+                        params.replace = document.getElementById('replaceText').value;
+                        break;
+                    case 'specific':
+                        params.symbols = document.getElementById('symbolsToDelete').value;
+                        break;
+                }
+                
+                element.dataset.params = JSON.stringify(params);
+                
+                // 隐藏模态框
+                modal.classList.remove('show');
+                showNotification('参数已设置');
+            };
+            
+            // 取消按钮事件
+            document.getElementById('cancelParam').onclick = function() {
+                modal.classList.remove('show');
+            };
+        }
+        
+        // 执行命令
+        function executeCommands() {
+            // 清除之前的高亮
+            clearHighlights();
+            
+            const input = inputContainer.innerText;
+            if (!input.trim()) {
+                showNotification('请输入文本');
+                return;
+            }
+            
+            const commands = commandSlot.querySelectorAll('.draggable-block');
+            if (commands.length === 0) {
+                showNotification('请添加命令');
+                return;
+            }
+            
+            let output = input;
+            let hasWordlistReplacement = false;
+            
+            // 执行每个命令
+            commands.forEach(cmd => {
+                const command = cmd.dataset.command;
+                const params = cmd.dataset.params ? JSON.parse(cmd.dataset.params) : {};
+                
+                switch(command) {
+                    case 'italic':
+                        output = `*${output}*`;
+                        break;
+                    case 'bold':
+                        output = `**${output}**`;
+                        break;
+                    case 'color':
+                        output = `[${output}]{color:${params.color}}`;
+                        break;
+                    case 'replace':
+                        if (params.find) {
+                            output = output.replace(new RegExp(escapeRegExp(params.find), 'g'), params.replace || '');
+                        }
+                        break;
+                    case 'wordlist':
+                        // 词表替换，记录替换位置用于高亮
+                        output = applyWordlistReplacements(input, output);
+                        hasWordlistReplacement = true;
+                        break;
+                    case 'fullwidth':
+                        // 半角转全角
+                        output = output.replace(/[\u0020-\u007E]/g, ch => 
+                            String.fromCharCode(ch.charCodeAt(0) + 0xFEE0));
+                        break;
+                    case 'halfwidth':
+                        // 全角转半角
+                        output = output.replace(/[\uff01-\uff5e]/g, ch => 
+                            String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
+                        break;
+                    case 'spaces':
+                        output = output.replace(/\s+/g, '');
+                        break;
+                    case 'newlines':
+                        output = output.replace(/[\r\n]+/g, '');
+                        break;
+                    case 'specific':
+                        if (params.symbols) {
+                            const escaped = escapeRegExp(params.symbols);
+                            output = output.replace(new RegExp(`[${escaped}]`, 'g'), '');
+                        }
+                        break;
+                    case 'linebreak':
+                        // 换行切分功能
+                        if (!params.symbols) {
+                            // 默认使用分号
+                            output = output.replace(/;/g, getLinebreakChar(params.linebreakType || 'br'));
+                        } else {
+                            // 多个符号用逗号分隔
+                            const symbols = params.symbols.split(',').map(s => escapeRegExp(s)).join('|');
+                            const regex = new RegExp(`(${symbols})`, 'g');
+                            output = output.replace(regex, `$1${getLinebreakChar(params.linebreakType || 'br')}`);
+                        }
+                        break;
+                }
+            });
+            
+            // 显示结果
+            outputText.textContent = output;
+            showNotification('命令执行完成');
+            
+            // 如果有词表替换且有替换内容，显示高亮并放烟花
+            if (hasWordlistReplacement && replacedPositions.length > 0) {
+                highlightReplacements();
+                
+                // 延迟播放烟花效果，等高亮显示后
+                setTimeout(() => {
+                    createFireworks();
+                }, 500);
+            } else if (commands.length > 0) {
+                // 如果没有词表替换但有其他命令，也放烟花
+                createFireworks();
+            }
+        }
+        
+        // 获取换行符
+        function getLinebreakChar(type) {
+            switch(type) {
+                case 'lf':
+                    return '\n';
+                case 'crlf':
+                    return '\r\n';
+                case 'br':
+                default:
+                    return '<br>';
+            }
+        }
+        
+        // 应用词表替换并记录替换位置
+        function applyWordlistReplacements(originalText, outputText) {
+            let text = outputText;
+            replacedPositions = [];
+            
+            // 按长度排序，优先替换长文本
+            const sortedPairs = [...ocrWordPairs].sort((a, b) => b.from.length - a.from.length);
+            
+            sortedPairs.forEach(pair => {
+                if (!pair.from || !pair.to) return;
+                
+                const regex = new RegExp(escapeRegExp(pair.from), 'g');
+                let match;
+                
+                // 查找所有匹配项并记录位置
+                while ((match = regex.exec(originalText)) !== null) {
+                    replacedPositions.push({
+                        start: match.index,
+                        end: match.index + pair.from.length,
+                        original: pair.from,
+                        replacement: pair.to
+                    });
+                }
+                
+                // 执行替换
+                text = text.replace(regex, pair.to);
+            });
+            
+            // 去重并按位置排序
+            replacedPositions = [...new Map(replacedPositions.map(item => 
+                [item.start, item]
+            )).values()].sort((a, b) => a.start - b.start);
+            
+            return text;
+        }
+        
+        // 高亮显示被替换的文本
+        function highlightReplacements() {
+            if (replacedPositions.length === 0) return;
+            
+            // 保存当前光标位置
+            const selection = window.getSelection();
+            const range = selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+            
+            // 获取原始文本
+            const originalText = inputContainer.innerText;
+            let newHtml = '';
+            let lastIndex = 0;
+            
+            // 构建带高亮的HTML
+            replacedPositions.forEach(pos => {
+                // 添加上一段未高亮的文本
+                newHtml += escapeHtml(originalText.substring(lastIndex, pos.start));
+                
+                // 添加高亮的文本
+                newHtml += `<span class="highlight-replaced">${escapeHtml(pos.original)}</span>`;
+                
+                lastIndex = pos.end;
+            });
+            
+            // 添加剩余文本
+            newHtml += escapeHtml(originalText.substring(lastIndex));
+            
+            // 设置新HTML
+            inputContainer.innerHTML = newHtml;
+            
+            // 恢复光标位置
+            if (range) {
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }
+        }
+        
+        // 清除高亮
+        function clearHighlights() {
+            // 保存当前光标位置
+            const selection = window.getSelection();
+            const range = selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+            
+            // 移除所有高亮标签，但保留文本
+            const highlightedSpans = inputContainer.querySelectorAll('.highlight-replaced');
+            highlightedSpans.forEach(span => {
+                const textNode = document.createTextNode(span.innerText);
+                span.parentNode.replaceChild(textNode, span);
+            });
+            
+            // 恢复光标位置
+            if (range) {
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }
+            
+            replacedPositions = [];
+        }
+        
+        // 创建烟花效果（基于参考的彩带烟花效果）
+        function createFireworks() {
+            // 清除现有烟花
+            while (fireworksContainer.firstChild) {
+                fireworksContainer.removeChild(fireworksContainer.firstChild);
+            }
+            
+            // 创建10个烟花
+            for (let i = 0; i < 10; i++) {
+                setTimeout(() => {
+                    createRibbonFirework(
+                        Math.random() * window.innerWidth,
+                        window.innerHeight,
+                        Math.random() * 360,
+                        ['#FF5252', '#FF4081', '#E040FB', '#7C4DFF', '#536DFE', '#448AFF', '#40C4FF', '#00E5FF', '#1DE9B6', '#00E676', '#76FF03', '#C6FF00', '#FFEB3B', '#FFC107', '#FF9800', '#FF5722'][Math.floor(Math.random() * 16)]
+                    );
+                }, i * 300);
+            }
+        }
+        
+        // 创建彩带烟花
+        function createRibbonFirework(x, y, angle, color) {
+            // 创建10-15条彩带
+            const ribbonCount = Math.floor(Math.random() * 6) + 10;
+            
+            for (let i = 0; i < ribbonCount; i++) {
+                const ribbon = document.createElement('div');
+                ribbon.className = 'ribbon';
+                ribbon.style.left = `${x}px`;
+                ribbon.style.top = `${y}px`;
+                ribbon.style.backgroundColor = color;
+                ribbon.style.transform = `rotate(${angle + (i * (360 / ribbonCount))}deg)`;
+                ribbon.style.opacity = '0';
+                
+                fireworksContainer.appendChild(ribbon);
+                
+                // 彩带动画
+                setTimeout(() => {
+                    ribbon.style.opacity = '1';
+                    ribbon.style.transition = `all 1s ease-out`;
+                    
+                    // 彩带飞散
+                    setTimeout(() => {
+                        ribbon.style.height = `${Math.random() * 100 + 50}px`;
+                        ribbon.style.opacity = '0';
+                        
+                        // 移除彩带
+                        setTimeout(() => {
+                            if (ribbon.parentNode) {
+                                ribbon.parentNode.removeChild(ribbon);
+                            }
+                        }, 1000);
+                    }, 100);
+                }, 50);
+            }
+        }
+        
+        // 清空命令槽
+        function clearCommandSlot() {
+            // 添加清空动画
+            const commands = commandSlot.querySelectorAll('.draggable-block');
+            if (commands.length > 0) {
+                commands.forEach((cmd, index) => {
+                    setTimeout(() => {
+                        cmd.style.transform = 'translateX(10px)';
+                        cmd.style.opacity = '0';
+                        setTimeout(() => cmd.remove(), 200);
+                    }, index * 100);
+                });
+                
+                setTimeout(() => {
+                    commandSlot.innerHTML = '<p style="text-align: center; margin: 60px 0; opacity: 0.7;">将积木拖到这里...</p>';
+                }, commands.length * 100 + 200);
+            }
+            
+            showNotification('命令槽已清空');
+        }
+        
+        // 复制到剪贴板
+        function copyToClipboard() {
+            const text = outputText.textContent;
+            
+            if (!text.trim()) {
+                showNotification('没有可复制的内容');
+                return;
+            }
+            
+            // 按钮动画反馈
+            copyBtn.style.transform = 'scale(0.9)';
+            setTimeout(() => {
+                copyBtn.style.transform = 'scale(1)';
+            }, 150);
+            
+            // 首先尝试现代API
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showNotification('复制成功！内容已复制到剪贴板');
+                }).catch(err => {
+                    console.error('Clipboard API 失败:', err);
+                    fallbackCopy(text);
+                });
+            } else {
+                // 浏览器不支持Clipboard API，使用备选方案
+                fallbackCopy(text);
+            }
+        }
+        
+        // 备选复制方法
+        function fallbackCopy(text) {
+            try {
+                // 创建临时textarea元素
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                
+                // 执行复制命令
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    showNotification('复制成功！内容已复制到剪贴板');
+                } else {
+                    showNotification('复制失败，请手动复制');
+                }
+            } catch (err) {
+                console.error('复制失败:', err);
+                showNotification('复制失败，请手动复制');
+            } finally {
+                // 清理临时元素
+                const textarea = document.querySelector('textarea[style*="opacity: 0"]');
+                if (textarea) {
+                    document.body.removeChild(textarea);
+                }
+            }
+        }
+        
+        // 获取命令名称
+        function getCommandName(command) {
+            const names = {
+                'italic': '斜体',
+                'bold': '粗体',
+                'color': '改色',
+                'replace': '替换字符',
+                'wordlist': '词表替换',
+                'fullwidth': '全角标点',
+                'halfwidth': '半角标点',
+                'spaces': '删除空格',
+                'newlines': '删除换行',
+                'specific': '删除特定符号',
+                'linebreak': '换行切分'
+            };
+            return names[command] || command;
+        }
+        
+        // 显示通知
+        function showNotification(message) {
+            const notification = document.getElementById('notification');
+            const text = document.getElementById('notificationText');
+            
+            text.textContent = message;
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 2000);
+        }
+        
+        // 工具函数：转义HTML
+        function escapeHtml(unsafe) {
+            if (!unsafe) return '';
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+        
+        // 工具函数：转义正则表达式特殊字符
+        function escapeRegExp(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+    </script>
+</body>
+</html>
+    
